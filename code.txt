@@ -1,0 +1,96 @@
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <iostream>
+
+using namespace cv;
+using namespace std;
+Mat frame, hsv, gray, imgBlur, imgCanny, imgDil, fin;
+int hmin = 0, hmax = 168, smin = 0, smax = 114, vmin = 227, vmax = 255;
+vector<vector<int>> points;
+
+//adjustColor() is used to change the color that is to be detected
+
+void adjustColor()
+{
+    namedWindow("track", (620, 200));
+    createTrackbar("hmin", "track", &hmin, 179);
+    createTrackbar("hmax", "track", &hmax, 179);
+    createTrackbar("smin", "track", &smin, 255);
+    createTrackbar("smax", "track", &smax, 255);
+    createTrackbar("vmin", "track", &vmin, 255);
+    createTrackbar("vmax", "track", &vmax, 255);
+}
+
+//Contour() is used to find the edges of the color 
+
+Point Contour()
+{
+    Point aim(0, 0);
+    vector<vector<Point>> contours;
+    vector<Vec4i> hierarchy;
+    vector<vector<Point>> conPoly(contours.size());
+    vector<Rect> boundRect(contours.size());
+    findContours(fin, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+    for (int i = 0; i < contours.size(); i++)
+    {
+        int area = contourArea(contours[i]);
+
+        if (area > 1000)
+        {
+            float peri = arcLength(contours[i], true);
+            approxPolyDP(contours[i], conPoly[i], 0.02 * peri, true);
+            boundRect[i] = boundingRect(conPoly[i]);
+            aim.x = boundRect[i].x + boundRect[i].width / 2;
+            aim.y = boundRect[i].y;
+            drawContours(frame, contours, i, Scalar(255, 0, 100), 2);
+        }
+    }
+    return aim;
+}
+
+//draw() is used to draw on frame
+
+void draw()
+{
+    for (int i = 0; i < points.size(); i++)
+    {
+        circle(frame, Point(points[i][0], points[i][1]), 10, Scalar(255, 0, 255), FILLED);
+    }
+}
+
+int main()
+{
+    Point aim;
+    char flag2;
+    bool flag = true;
+    VideoCapture x(0);
+
+    while (true)
+    {
+        if (flag)
+        {
+            cout << "do you want to change the color detected?[y/n] (default is white)" << endl;
+            cin >> flag2;
+            if (flag2 == 'y')
+                adjustColor();
+            flag = false;
+
+        }
+        Scalar lower(hmin, smin, vmin);
+        Scalar upper(hmax, smax, vmax);
+        x.read(frame);
+        cvtColor(frame, hsv, COLOR_BGR2HSV);
+        inRange(hsv, lower, upper, fin);
+        aim = Contour();
+        if (aim.x != 0 && aim.y != 0)
+            points.push_back({ aim.x,aim.y });
+        draw();
+        imshow("frame", frame);
+        //imshow("hsv", fin);
+        waitKey(1);
+
+    }
+    return 0;
+}
